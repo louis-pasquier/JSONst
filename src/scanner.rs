@@ -106,10 +106,13 @@ where
         }
         
         // Handle complex token
-        if self.ch == '"' { // TODO : need to handle better
+        if self.ch == '"' {
             let mut value = String::new();
             self.get_next_char();
             while self.ch != '"' {
+                if self.ch == '\\' {
+                    self.get_next_char();
+                }
                 value.push(self.ch);
                 self.get_next_char();
             }
@@ -117,17 +120,40 @@ where
             return Token::String(value)
         }
         
-        if self.ch.is_digit(10) { // TODO : need to handle better
+        if self.ch.is_numeric() || self.ch == '-' {
             let mut value = String::new();
             value.push(self.ch);
             self.get_next_char();
-            while self.ch.is_digit(10) {
+
+            self.handle_digits(&mut value);
+
+            if self.ch == '.' {
                 value.push(self.ch);
                 self.get_next_char();
+                self.handle_digits(&mut value);
+                if self.ch == 'e' || self.ch == 'E' {
+                    value.push(self.ch);
+                    self.get_next_char();
+                    if self.ch == '-' || self.ch == '+' {
+                        value.push(self.ch);
+                        self.get_next_char();
+                        self.handle_digits(&mut value);
+                    } else {
+                        return Token::Unknown;
+                    }
+                }
             }
+
             return Token::Number(value)
         }
 
         return Token::Unknown
+    }
+
+    fn handle_digits(&mut self, value : &mut String) {
+        while self.ch.is_numeric() {
+            value.push(self.ch);
+            self.get_next_char();
+        }
     }
 }
