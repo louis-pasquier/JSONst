@@ -15,7 +15,7 @@ fn main() {
 
     let lines = read_lines("./samples/list.json").expect("Failed to read file");
     let mut scanner = Scanner::new(lines);
-    // scanner.parse_all_chars();
+    //scanner.parse_all_chars();
     while scanner.token != Token::Eof {
         scanner.get_next_token();
         println!("{:?}", scanner.token);

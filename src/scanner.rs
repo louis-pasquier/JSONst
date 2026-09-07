@@ -25,7 +25,7 @@ where
         Scanner {
             lines,
             eof: false,
-            ch: '\0',
+            ch: ' ',
             line: String::new(),
             line_no: 0,
             col_no: 0,
@@ -62,57 +62,11 @@ where
         }
     }
 
-    /// Debug function
-    pub fn parse_all_chars(&mut self) {
-        while !self.eof {
-            self.get_next_char();
-            print!("{}", self.ch);
-        }
-    }
-
     pub fn get_next_token(&mut self) {
         self.skip_space();
         if self.eof {
             self.token = Token::Eof;
             return;
-        }
-
-        // Handle literal token (true, false, null)
-        if self.ch.is_alphabetic() {
-            let mut value = String::new();
-            value.push(self.ch);
-            self.get_next_char();
-            while self.ch.is_alphanumeric() {
-                value.push(self.ch);
-                self.get_next_char();
-            }
-            self.token = match value.as_str() {
-                "true" => Token::True,
-                "false" => Token::False,
-                "null" => Token::Null,
-                _ => Token::Unknown,
-            };
-        }
-
-        // Handle complex token
-        if self.ch == '"' { // TODO : need to handle better
-            let mut value = String::new();
-            value.push(self.ch);
-            self.get_next_char();
-            while self.ch != '"' {
-                value.push(self.ch);
-                self.get_next_char();
-            }
-            self.token = Token::String(value)
-        } else if self.ch.is_numeric() { // TODO : need to handle better
-            let mut value = String::new();
-            value.push(self.ch);
-            self.get_next_char();
-            while self.ch.is_numeric() {
-                value.push(self.ch);
-                self.get_next_char();
-            }
-            self.token = Token::Number(value)
         }
 
         self.token = match self.ch {
@@ -124,6 +78,56 @@ where
             ':' => Token::Colon,
             _ => Token::Unknown,
         };
-        self.get_next_char();
+
+        if self.token == Token::Unknown {
+            self.token = self.handle_token();
+        } else {
+            self.get_next_char();
+        }
+        
+    }
+
+    fn handle_token(&mut self) -> Token {
+        // Handle literal token (true, false, null)
+        if self.ch.is_alphabetic() {
+            let mut value = String::new();
+            value.push(self.ch);
+            self.get_next_char();
+            while self.ch.is_alphanumeric() {
+                value.push(self.ch);
+                self.get_next_char();
+            }
+            return match value.as_str() {
+                "true" => Token::True,
+                "false" => Token::False,
+                "null" => Token::Null,
+                _ => Token::Unknown,
+            };
+        }
+        
+        // Handle complex token
+        if self.ch == '"' { // TODO : need to handle better
+            let mut value = String::new();
+            self.get_next_char();
+            while self.ch != '"' {
+                value.push(self.ch);
+                self.get_next_char();
+            }
+            self.get_next_char();
+            return Token::String(value)
+        }
+        
+        if self.ch.is_digit(10) { // TODO : need to handle better
+            let mut value = String::new();
+            value.push(self.ch);
+            self.get_next_char();
+            while self.ch.is_digit(10) {
+                value.push(self.ch);
+                self.get_next_char();
+            }
+            return Token::Number(value)
+        }
+
+        return Token::Unknown
     }
 }
