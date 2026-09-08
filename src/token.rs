@@ -21,4 +21,5 @@ pub enum Token {
     // Other
     Unknown,
     Eof,
+    Error(String),
 }
