@@ -20,6 +20,13 @@ pub enum Token {
 
     // Other
     Eof,
-    Invalid(String),
+    Invalid(InvalidToken),
     Error(String),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct InvalidToken {
+    pub message: String,       // Error message
+    pub byte_offset: usize, // Token byte offset in the line
+    pub line_no: u16,       // Token line number
 }
