@@ -1,9 +1,9 @@
 
-mod scanner;
+mod lexer;
 mod token;
 
 
-use scanner::Scanner;
+use lexer::Lexer;
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
@@ -14,7 +14,7 @@ fn main() {
     println!("Running JSONst");
 
     let lines = read_lines("./samples/list.json").expect("Failed to read file");
-    let mut scanner = Scanner::new(lines);
+    let mut scanner = Lexer::new(lines);
     //scanner.parse_all_chars();
     while scanner.token != Token::Eof {
         scanner.get_next_token();
