@@ -1,6 +1,6 @@
 /// Scanner : reads token
 
-use std::io::Error;
+use std::{io::Error};
 use crate::token::Token;
 
 pub struct Scanner<I> {
@@ -11,7 +11,6 @@ pub struct Scanner<I> {
     line: String,       // Current text line
     byte_offset: usize, // Current byte offset in the line
     line_no: u16,       // Current line number
-    col_no: u16,        // Current column number
 
     pub token: Token,   // Current token
     pub io_error: Option<std::io::Error>,
@@ -31,8 +30,7 @@ where
             line: String::new(),
             byte_offset: 0,
             line_no: 0,
-            col_no: 0,
-            token: Token::Unknown,
+            token: Token::Invalid("Unknown token, line : 0, column : 0".to_string()),
             io_error: None,
         }
     }
@@ -47,7 +45,6 @@ where
 
         while !self.eof && self.byte_offset >= self.line.len() {
             self.line_no += 1;
-            self.col_no = 0;
 
             match self.lines.next() {
                 Some(Ok(new_line)) => {
@@ -71,7 +68,6 @@ where
             self.ch = self.line[self.byte_offset..].chars().next().unwrap();
             
             self.byte_offset += self.ch.len_utf8();
-            self.col_no += 1;
         }
     }
 
@@ -79,7 +75,7 @@ where
         self.skip_space();
         if self.eof {
             if let Some(err) = self.io_error.take() {
-                self.token = Token::Error(format!("I/O Error: {}", err));
+                self.token = Token::Error(format!("Line {}, Column {} : I/O Error: {}", self.line_no, self.byte_offset, err));
             } else {
                 self.token = Token::Eof;
             }
@@ -96,7 +92,8 @@ where
         } else if let Some(token) = self.handle_numerical() {
             self.token = token;
         } else {
-            self.token = Token::Unknown;
+            self.token = Token::Invalid(format!("Line {}, Column {} : Unknown token", self.line_no, self.byte_offset));
+            self.get_next_char();
         }
         
     }
@@ -119,7 +116,7 @@ where
             let mut value = String::new();
             value.push(self.ch);
             self.get_next_char();
-            while self.ch.is_alphanumeric() {
+            while self.ch.is_alphabetic() {
                 value.push(self.ch);
                 self.get_next_char();
             }
@@ -136,9 +133,15 @@ where
 
     fn handle_string(&mut self) -> Option<Token> {
         if self.ch == '"' {
+            let str_col_no = self.byte_offset;
+            let str_line_no = self.line_no;
+
             let mut value = String::new();
             self.get_next_char();
             while self.ch != '"' {
+                if self.eof {
+                    return Some(Token::Invalid(format!("Line {}, Column {} : Unterminated String", str_line_no, str_col_no)));
+                }
                 if self.ch == '\\' {
                     self.get_next_char();
                     match self.ch {
@@ -158,11 +161,20 @@ where
                                     hex_digit.push(self.ch);
                                 }
                             }
-                            let parsed_val = u32::from_str_radix(&hex_digit, 16).expect("Invalid hex string");
-                            let c = char::from_u32(parsed_val).expect("Invalid Unicode scalar value");
-                            value.push(c);
+                            let parsed_val = match u32::from_str_radix(&hex_digit, 16) {
+                                Ok(val) => val,
+                                Err(e) => {
+                                    return Some(Token::Invalid(format!("Line {}, Column {} : Character \\u{} is invalid, error : {}", self.line_no, self.byte_offset, hex_digit, e)))
+                                }
+                            };
+                            match char::from_u32(parsed_val) {
+                                Some(c) => value.push(c),
+                                None => {
+                                    return Some(Token::Invalid(format!("Line {}, Column {} : Character \\u{} is unknown", self.line_no, self.byte_offset, hex_digit)))
+                                }
+                            }
                         },
-                        _ => print!("Invalid escape character"),
+                        _ => return Some(Token::Invalid(format!("Line {}, Column {} : Character \\{} is invalid", self.line_no, self.byte_offset, self.ch.to_string()))),
                     }
                 } else {
                     value.push(self.ch);
@@ -176,35 +188,85 @@ where
         None
     }
 
-    fn handle_numerical(&mut self) -> Option<Token> {
-        if self.ch.is_numeric() || self.ch == '-' {
+    fn handle_numerical(&mut self) -> Option<Token> {        
+        if matches!(self.ch, '1'..='9') {
             let mut value = String::new();
             value.push(self.ch);
             self.get_next_char();
 
             self.handle_digits(&mut value);
-
-            if self.ch == '.' {
-                value.push(self.ch);
-                self.get_next_char();
-                self.handle_digits(&mut value);
-                if self.ch == 'e' || self.ch == 'E' {
-                    value.push(self.ch);
-                    self.get_next_char();
-                    if self.ch == '-' || self.ch == '+' {
-                        value.push(self.ch);
-                        self.get_next_char();
-                        self.handle_digits(&mut value);
-                    } else {
-                        return None;
-                    }
+            if self.ch == 'e' || self.ch == 'E' {
+                self.handle_exponent(&mut value);
+            } else {
+                match self.handle_fraction(&mut value) {
+                    Some(token) => return Some(token),
+                    None => return Some(Token::Number(value)),
                 }
             }
 
             return Some(Token::Number(value));
+        } else if self.ch == '-' {
+            let mut value = String::new();
+            value.push(self.ch);
+            self.get_next_char();
+
+            if self.ch == '0' {
+                let mut value = String::new();
+                value.push(self.ch);
+                self.get_next_char();
+
+                match self.handle_fraction(&mut value) {
+                    Some(token) => return Some(token),
+                    None => return Some(Token::Number(value)),
+                }
+            } else if matches!(self.ch, '1'..='9') {
+                self.handle_digits(&mut value);
+                if self.ch == 'e' || self.ch == 'E' {
+                    self.handle_exponent(&mut value);
+                } else {
+                    self.handle_fraction(&mut value);
+                }
+
+                return Some(Token::Number(value));
+            }
+
+        } else if self.ch == '0' {
+            let mut value = String::new();
+            value.push(self.ch);
+            self.get_next_char();
+
+            match self.handle_fraction(&mut value) {
+                Some(token) => return Some(token),
+                None => return Some(Token::Number(value)),
+            }
         }
 
         None
+    }
+
+    fn handle_fraction(&mut self, value : &mut String) -> Option<Token> {
+        if self.ch == '.' {
+            value.push(self.ch);
+            self.get_next_char();
+            self.handle_digits(value);
+            if self.ch == 'e' || self.ch == 'E' {
+                return self.handle_exponent(value);
+            }
+        }
+        return None
+    }
+
+    fn handle_exponent(&mut self, value : &mut String) -> Option<Token> {
+        value.push(self.ch);
+        self.get_next_char();
+        if self.ch == '-' || self.ch == '+' {
+            value.push(self.ch);
+            self.get_next_char();
+            self.handle_digits(value);
+            return None;
+        }
+        
+        return Some(Token::Invalid(format!("Line {}, Column {} : Token \\{} is invalid", self.line_no, self.byte_offset, value)));
     }
 
     fn handle_digits(&mut self, value : &mut String) {

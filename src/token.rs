@@ -19,7 +19,7 @@ pub enum Token {
     Number(String),
 
     // Other
-    Unknown,
     Eof,
+    Invalid(String),
     Error(String),
 }
