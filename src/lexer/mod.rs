@@ -1,8 +1,9 @@
-/// Scanner : reads token
+pub mod token;
 
+/// Scanner : reads token
 use std::{io::Error};
-use crate::token::Token;
-use crate::token::InvalidToken;
+use token::Token;
+use token::InvalidToken;
 
 pub struct Lexer<I> {
     lines: I,           // Input text to scan
@@ -17,11 +18,20 @@ pub struct Lexer<I> {
     pub io_error: Option<std::io::Error>,
 }
 
+pub fn parse<I>(lines: I) 
+where
+    I: Iterator<Item = Result<String, Error>>, {
+    let mut scanner = Lexer::new(lines);
+    while scanner.token != Token::Eof {
+        scanner.get_next_token();
+        println!("{:?}", scanner.token);
+    }
+}
+
 impl<I> Lexer<I>
 where
     I: Iterator<Item = Result<String, Error>>, 
 {
-
     // Scanner constructor
     pub fn new(lines: I) -> Self {
         Lexer {
@@ -363,5 +373,149 @@ where
                 byte_offset: self.byte_offset, 
                 line_no: self.line_no
             }))
+    }
+}
+
+// UNIT TESTS
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::token::Token;
+
+    fn collect_tokens(input: &str) -> Vec<Token> {
+        let lines = input.lines().map(|l| Ok(l.to_string()));
+        let mut lexer = Lexer::new(lines);
+
+        let mut tokens = Vec::new();
+
+        loop {
+            lexer.get_next_token();
+            tokens.push(lexer.token.clone());
+
+            if lexer.token == Token::Eof {
+                break;
+            }
+        }
+
+        tokens
+    }
+
+    #[test]
+    fn scans_empty_object() {
+        let tokens = collect_tokens("{}");
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::LeftBrace,
+                Token::RightBrace,
+                Token::Eof
+            ]
+        );
+    }
+
+    #[test]
+    fn scans_empty_array() {
+        let tokens = collect_tokens("[]");
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::LeftBracket,
+                Token::RightBracket,
+                Token::Eof
+            ]
+        );
+    }
+
+    #[test]
+    fn scans_literals() {
+        let tokens = collect_tokens("true false null");
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::True,
+                Token::False,
+                Token::Null,
+                Token::Eof
+            ]
+        );
+    }
+
+    #[test]
+    fn scans_simple_string() {
+        let tokens = collect_tokens(r#""hello""#);
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::String("hello".to_string()),
+                Token::Eof
+            ]
+        );
+    }
+
+    #[test]
+    fn scans_number_integer() {
+        let tokens = collect_tokens("123");
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Number("123".to_string()),
+                Token::Eof
+            ]
+        );
+    }
+
+    #[test]
+    fn scans_number_decimal() {
+        let tokens = collect_tokens("123.45");
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Number("123.45".to_string()),
+                Token::Eof
+            ]
+        );
+    }
+
+    #[test]
+    fn scans_number_exponent() {
+        let tokens = collect_tokens("1.23e+10");
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Number("1.23e+10".to_string()),
+                Token::Eof
+            ]
+        );
+    }
+
+    #[test]
+    fn scans_json_object() {
+        let tokens = collect_tokens(
+            r#"{"name":"Louis","age":25}"#
+        );
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::LeftBrace,
+                Token::String("name".to_string()),
+                Token::Colon,
+                Token::String("Louis".to_string()),
+                Token::Comma,
+                Token::String("age".to_string()),
+                Token::Colon,
+                Token::Number("25".to_string()),
+                Token::RightBrace,
+                Token::Eof
+            ]
+        );
     }
 }
