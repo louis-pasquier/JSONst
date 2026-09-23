@@ -1,26 +1,27 @@
 pub mod token;
 
 /// Scanner : reads token
-use std::{io::Error};
-use token::Token;
+use std::io::Error;
 use token::InvalidToken;
+use token::Token;
 
 pub struct Lexer<I> {
-    lines: I,           // Input text to scan
-    eof: bool,          // Is end of file
+    lines: I,  // Input text to scan
+    eof: bool, // Is end of file
 
     ch: char,           // Current character
     line: String,       // Current text line
     byte_offset: usize, // Current byte offset in the line
     line_no: u16,       // Current line number
 
-    pub token: Token,   // Current token
+    pub token: Token, // Current token
     pub io_error: Option<std::io::Error>,
 }
 
-pub fn parse<I>(lines: I) 
+pub fn parse<I>(lines: I)
 where
-    I: Iterator<Item = Result<String, Error>>, {
+    I: Iterator<Item = Result<String, Error>>,
+{
     let mut scanner = Lexer::new(lines);
     while scanner.token != Token::Eof {
         scanner.get_next_token();
@@ -30,7 +31,7 @@ where
 
 impl<I> Lexer<I>
 where
-    I: Iterator<Item = Result<String, Error>>, 
+    I: Iterator<Item = Result<String, Error>>,
 {
     // Scanner constructor
     pub fn new(lines: I) -> Self {
@@ -41,7 +42,7 @@ where
             line: String::new(),
             byte_offset: 0,
             line_no: 0,
-            token: Token::Invalid(InvalidToken{
+            token: Token::Invalid(InvalidToken {
                 message: "Unknown token".to_string(),
                 byte_offset: 0,
                 line_no: 0,
@@ -57,7 +58,6 @@ where
     }
 
     fn get_next_char(&mut self) {
-
         while !self.eof && self.byte_offset >= self.line.len() {
             self.line_no += 1;
 
@@ -81,7 +81,7 @@ where
             self.ch = '\0';
         } else {
             self.ch = self.line[self.byte_offset..].chars().next().unwrap();
-            
+
             self.byte_offset += self.ch.len_utf8();
         }
     }
@@ -90,7 +90,10 @@ where
         self.skip_space();
         if self.eof {
             if let Some(err) = self.io_error.take() {
-                self.token = Token::Error(format!("Line {}, Column {} : I/O Error: {}", self.line_no, self.byte_offset, err));
+                self.token = Token::Error(format!(
+                    "Line {}, Column {} : I/O Error: {}",
+                    self.line_no, self.byte_offset, err
+                ));
             } else {
                 self.token = Token::Eof;
             }
@@ -107,18 +110,17 @@ where
         } else if let Some(token) = self.handle_numerical() {
             self.token = token;
         } else {
-            self.token = Token::Invalid(InvalidToken { 
-                message: "Unknown token".to_string(), 
-                byte_offset: self.byte_offset, 
-                line_no: self.line_no 
+            self.token = Token::Invalid(InvalidToken {
+                message: "Unknown token".to_string(),
+                byte_offset: self.byte_offset,
+                line_no: self.line_no,
             });
             self.get_next_char();
         }
-        
     }
 
     fn handle_simple_token(&mut self) -> Option<Token> {
-        return match self.ch {
+        match self.ch {
             '{' => Some(Token::LeftBrace),
             '}' => Some(Token::RightBrace),
             '[' => Some(Token::LeftBracket),
@@ -126,7 +128,7 @@ where
             ',' => Some(Token::Comma),
             ':' => Some(Token::Colon),
             _ => None,
-        };
+        }
     }
 
     fn handle_literal(&mut self) -> Option<Token> {
@@ -146,7 +148,7 @@ where
                 _ => None,
             };
         }
-        
+
         None
     }
 
@@ -159,10 +161,10 @@ where
             self.get_next_char();
             while self.ch != '"' {
                 if self.eof {
-                    return Some(Token::Invalid(InvalidToken { 
+                    return Some(Token::Invalid(InvalidToken {
                         message: "Unterminated String".to_string(),
                         byte_offset: str_col_no,
-                        line_no: str_line_no 
+                        line_no: str_line_no,
                     }));
                 }
                 if self.ch == '\\' {
@@ -180,12 +182,14 @@ where
                             if let Err(token) = self.handle_hex_char(&mut value) {
                                 return Some(token);
                             }
-                        },
-                        _ => return Some(Token::Invalid(InvalidToken { 
-                                        message: format!("Character \\{} is invalid", self.ch.to_string()),
-                                        byte_offset: self.byte_offset, 
-                                        line_no: self.line_no
-                                    })),
+                        }
+                        _ => {
+                            return Some(Token::Invalid(InvalidToken {
+                                message: format!("Character \\{} is invalid", self.ch),
+                                byte_offset: self.byte_offset,
+                                line_no: self.line_no,
+                            }));
+                        }
                     }
                 } else {
                     value.push(self.ch);
@@ -193,65 +197,59 @@ where
                 self.get_next_char();
             }
             self.get_next_char();
-            return Some(Token::String(value))
+            return Some(Token::String(value));
         }
 
         None
     }
 
-    fn handle_hex_char(&mut self, value : &mut String) -> Result<(), Token> {
-        let mut parsed_val = match self.parse_hex_char() {
-            Ok(val) => val,
-            Err(token) => return Err(token),
-        };
+    fn handle_hex_char(&mut self, value: &mut String) -> Result<(), Token> {
+        let mut parsed_val = self.parse_hex_char()?;
 
         // is high surrogate ?
-        if parsed_val >= 0xD800 && parsed_val <= 0xDBFF {
+        if (0xD800..=0xDBFF).contains(&parsed_val) {
             self.get_next_char();
             if self.ch != '\\' {
                 return Err(Token::Invalid(InvalidToken {
                     message: format!("Character {} is invalid, should be \\", self.ch),
-                    byte_offset: self.byte_offset, 
-                    line_no: self.line_no
-                }))
+                    byte_offset: self.byte_offset,
+                    line_no: self.line_no,
+                }));
             }
 
             self.get_next_char();
             if self.ch != 'u' {
                 return Err(Token::Invalid(InvalidToken {
                     message: format!("Character {} is invalid, should be u", self.ch),
-                    byte_offset: self.byte_offset, 
-                    line_no: self.line_no
-                }))
+                    byte_offset: self.byte_offset,
+                    line_no: self.line_no,
+                }));
             }
-            
-            let parsed_val_low = match self.parse_hex_char() {
-                Ok(val) => val,
-                Err(token) => return Err(token),
-            };
+
+            let parsed_val_low = self.parse_hex_char()?;
 
             // is low surrogate ?
-            if parsed_val_low >= 0xDC00 && parsed_val_low <= 0xDFFF {
+            if (0xDC00..=0xDFFF).contains(&parsed_val_low) {
                 let high_surrogate = parsed_val - 0xD800;
                 let low_surrogate = parsed_val_low - 0xDC00;
                 parsed_val = 0x10000 + ((high_surrogate << 10) | low_surrogate);
             } else {
                 return Err(Token::Invalid(InvalidToken {
                     message: format!("Character {} is not low surrogate", self.ch),
-                    byte_offset: self.byte_offset, 
-                    line_no: self.line_no
-                }))
+                    byte_offset: self.byte_offset,
+                    line_no: self.line_no,
+                }));
             }
         }
 
         match char::from_u32(parsed_val) {
             Some(c) => value.push(c),
             None => {
-                return Err(Token::Invalid(InvalidToken { 
+                return Err(Token::Invalid(InvalidToken {
                     message: format!("Character \\u{} is unknown", self.ch),
-                    byte_offset: self.byte_offset, 
-                    line_no: self.line_no
-                }))
+                    byte_offset: self.byte_offset,
+                    line_no: self.line_no,
+                }));
             }
         }
 
@@ -262,32 +260,32 @@ where
         let mut hex_digit = String::new();
         for _ in 0..4 {
             self.get_next_char();
-            if self.ch.is_digit(16) {
+            if self.ch.is_ascii_hexdigit() {
                 hex_digit.push(self.ch);
             } else {
-                return Err(Token::Invalid(InvalidToken { 
-                    message: format!("Character {} is not hexadecimal", self.ch), 
-                    byte_offset: self.byte_offset, 
-                    line_no: self.line_no
-                }))
+                return Err(Token::Invalid(InvalidToken {
+                    message: format!("Character {} is not hexadecimal", self.ch),
+                    byte_offset: self.byte_offset,
+                    line_no: self.line_no,
+                }));
             }
         }
-        
+
         let parsed_val = match u32::from_str_radix(&hex_digit, 16) {
             Ok(val) => val,
             Err(e) => {
-                return Err(Token::Invalid(InvalidToken { 
+                return Err(Token::Invalid(InvalidToken {
                     message: format!("Character {} is invalid, error : {}", hex_digit, e),
-                    byte_offset: self.byte_offset, 
-                    line_no: self.line_no
-                }))
+                    byte_offset: self.byte_offset,
+                    line_no: self.line_no,
+                }));
             }
         };
 
         Ok(parsed_val)
     }
 
-    fn handle_numerical(&mut self) -> Option<Token> {        
+    fn handle_numerical(&mut self) -> Option<Token> {
         let mut value = String::new();
 
         if self.ch == '-' {
@@ -320,24 +318,22 @@ where
                 Err(token) => return Some(token),
                 Ok(_msg) => return Some(Token::Number(value)),
             }
-        } else if value.len() > 0 {
-            return Some(Token::Invalid(InvalidToken { 
-                                        message: format!("Token {} is invalid", value),
-                                        byte_offset: self.byte_offset, 
-                                        line_no: self.line_no
-                                    }))
+        } else if !value.is_empty() {
+            return Some(Token::Invalid(InvalidToken {
+                message: format!("Token {} is invalid", value),
+                byte_offset: self.byte_offset,
+                line_no: self.line_no,
+            }));
         }
 
         None
     }
 
-    fn handle_fraction(&mut self, value : &mut String) -> Result<(), Token> {
+    fn handle_fraction(&mut self, value: &mut String) -> Result<(), Token> {
         if self.ch == '.' {
             value.push(self.ch);
             self.get_next_char();
-            if let Err(token) = self.handle_digits(value) {
-                return Err(token);
-            }
+            self.handle_digits(value)?;
             if self.ch == 'e' || self.ch == 'E' {
                 return self.handle_exponent(value);
             }
@@ -345,7 +341,7 @@ where
         Ok(())
     }
 
-    fn handle_exponent(&mut self, value : &mut String) -> Result<(), Token> {
+    fn handle_exponent(&mut self, value: &mut String) -> Result<(), Token> {
         value.push(self.ch);
         self.get_next_char();
         if self.ch == '-' || self.ch == '+' {
@@ -353,26 +349,25 @@ where
             self.get_next_char();
         }
 
-        return self.handle_digits(value);
+        self.handle_digits(value)
     }
 
-    fn handle_digits(&mut self, value : &mut String) -> Result<(), Token> {
+    fn handle_digits(&mut self, value: &mut String) -> Result<(), Token> {
         let mut digit_found = false;
-        while self.ch.is_digit(10) {
+        while self.ch.is_ascii_digit() {
             value.push(self.ch);
             self.get_next_char();
             digit_found = true
         }
         if digit_found {
-            return Ok(())
+            return Ok(());
         }
 
-        Err(Token::Invalid(
-            InvalidToken { 
-                message: format!("Digit(s) expected, {} is an invalid token", value),
-                byte_offset: self.byte_offset, 
-                line_no: self.line_no
-            }))
+        Err(Token::Invalid(InvalidToken {
+            message: format!("Digit(s) expected, {} is an invalid token", value),
+            byte_offset: self.byte_offset,
+            line_no: self.line_no,
+        }))
     }
 }
 
@@ -407,11 +402,7 @@ mod tests {
 
         assert_eq!(
             tokens,
-            vec![
-                Token::LeftBrace,
-                Token::RightBrace,
-                Token::Eof
-            ]
+            vec![Token::LeftBrace, Token::RightBrace, Token::Eof]
         );
     }
 
@@ -421,11 +412,7 @@ mod tests {
 
         assert_eq!(
             tokens,
-            vec![
-                Token::LeftBracket,
-                Token::RightBracket,
-                Token::Eof
-            ]
+            vec![Token::LeftBracket, Token::RightBracket, Token::Eof]
         );
     }
 
@@ -435,12 +422,7 @@ mod tests {
 
         assert_eq!(
             tokens,
-            vec![
-                Token::True,
-                Token::False,
-                Token::Null,
-                Token::Eof
-            ]
+            vec![Token::True, Token::False, Token::Null, Token::Eof]
         );
     }
 
@@ -448,26 +430,14 @@ mod tests {
     fn scans_simple_string() {
         let tokens = collect_tokens(r#""hello""#);
 
-        assert_eq!(
-            tokens,
-            vec![
-                Token::String("hello".to_string()),
-                Token::Eof
-            ]
-        );
+        assert_eq!(tokens, vec![Token::String("hello".to_string()), Token::Eof]);
     }
 
     #[test]
     fn scans_number_integer() {
         let tokens = collect_tokens("123");
 
-        assert_eq!(
-            tokens,
-            vec![
-                Token::Number("123".to_string()),
-                Token::Eof
-            ]
-        );
+        assert_eq!(tokens, vec![Token::Number("123".to_string()), Token::Eof]);
     }
 
     #[test]
@@ -476,10 +446,7 @@ mod tests {
 
         assert_eq!(
             tokens,
-            vec![
-                Token::Number("123.45".to_string()),
-                Token::Eof
-            ]
+            vec![Token::Number("123.45".to_string()), Token::Eof]
         );
     }
 
@@ -489,18 +456,13 @@ mod tests {
 
         assert_eq!(
             tokens,
-            vec![
-                Token::Number("1.23e+10".to_string()),
-                Token::Eof
-            ]
+            vec![Token::Number("1.23e+10".to_string()), Token::Eof]
         );
     }
 
     #[test]
     fn scans_json_object() {
-        let tokens = collect_tokens(
-            r#"{"name":"Louis","age":25}"#
-        );
+        let tokens = collect_tokens(r#"{"name":"Louis","age":25}"#);
 
         assert_eq!(
             tokens,

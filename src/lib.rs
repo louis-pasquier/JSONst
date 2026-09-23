@@ -5,7 +5,9 @@ use std::io::{self, BufRead};
 use std::path::Path;
 
 pub fn parse_file<P>(filename: P) -> io::Result<()>
-where P: AsRef<Path>, {
+where
+    P: AsRef<Path>,
+{
     let file = File::open(filename)?;
     let lines = io::BufReader::new(file).lines();
     lexer::parse(lines);
@@ -21,4 +23,3 @@ pub fn parse_str(json: &str) -> io::Result<()> {
     // TODO : parser call
     Ok(())
 }
-

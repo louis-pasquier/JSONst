@@ -1,4 +1,3 @@
-
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
     // Structural tokens
@@ -26,7 +25,7 @@ pub enum Token {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct InvalidToken {
-    pub message: String,       // Error message
+    pub message: String,    // Error message
     pub byte_offset: usize, // Token byte offset in the line
     pub line_no: u16,       // Token line number
 }
