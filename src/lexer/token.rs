@@ -20,7 +20,6 @@ pub enum Token {
     // Other
     Eof,
     Invalid(InvalidToken),
-    Error(String),
 }
 
 #[derive(Debug, PartialEq, Clone)]

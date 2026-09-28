@@ -9,24 +9,13 @@ pub struct Lexer<I> {
     lines: I,  // Input text to scan
     eof: bool, // Is end of file
 
-    ch: char,           // Current character
-    line: String,       // Current text line
-    byte_offset: usize, // Current byte offset in the line
-    line_no: u16,       // Current line number
+    ch: char,               // Current character
+    line: String,           // Current text line
+    pub byte_offset: usize, // Current byte offset in the line
+    pub line_no: u16,       // Current line number
 
     pub token: Token, // Current token
     pub io_error: Option<std::io::Error>,
-}
-
-pub fn parse<I>(lines: I)
-where
-    I: Iterator<Item = Result<String, Error>>,
-{
-    let mut scanner = Lexer::new(lines);
-    while scanner.token != Token::Eof {
-        scanner.get_next_token();
-        println!("{:?}", scanner.token);
-    }
 }
 
 impl<I> Lexer<I>
@@ -90,10 +79,11 @@ where
         self.skip_space();
         if self.eof {
             if let Some(err) = self.io_error.take() {
-                self.token = Token::Error(format!(
-                    "Line {}, Column {} : I/O Error: {}",
-                    self.line_no, self.byte_offset, err
-                ));
+                self.token = Token::Invalid(InvalidToken {
+                    message: err.to_string(),
+                    line_no: self.line_no,
+                    byte_offset: self.byte_offset,
+                });
             } else {
                 self.token = Token::Eof;
             }
