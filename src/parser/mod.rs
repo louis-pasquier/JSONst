@@ -1,4 +1,5 @@
 use crate::lexer::{self, token::Token};
+use crate::parser;
 use std::collections::HashMap;
 use std::io::Error;
 use std::{fmt};
@@ -35,7 +36,7 @@ impl fmt::Display for JsonValue {
             JsonValue::Null => write!(f, "null"),
             JsonValue::Bool(val) => write!(f, "{}", val),
             JsonValue::Number(val) => write!(f, "{}", val),
-            JsonValue::String(val) => write!(f, "{}", val),
+            JsonValue::String(val) => write!(f, "\"{}\"", val),
             JsonValue::Array(vals) => {
                 let elements: Vec<String> = vals.iter().map(|x| x.to_string()).collect();
                 write!(f, "[{}]", elements.join(", "))
@@ -70,11 +71,19 @@ where
     pub fn parse(&mut self) -> JsonValue {
         self.lexer.get_next_token();
 
-        match self.lexer.token {
+        self.parse_value()
+    }
+
+    fn parse_value(&mut self) -> JsonValue {
+        match &self.lexer.token {
+            Token::True => JsonValue::Bool(true),
+            Token::False => JsonValue::Bool(false),
+            Token::Number(val) => JsonValue::Number(val.parse::<f64>().unwrap()),
+            Token::String(val) => JsonValue::String(val.to_string()),
             Token::LeftBracket => JsonValue::Array(self.array()),
             Token::LeftBrace => JsonValue::Object(self.object()),
             Token::Eof => {
-                // TODO print errors
+                self.print_errors();
                 JsonValue::Null
             }
             _ => {
@@ -88,15 +97,34 @@ where
         }
     }
 
+    fn print_errors(&self) {
+        for parser_error in &self.errors {
+            print!("{}", parser_error)
+        }
+    }
+
     fn object(&mut self) -> HashMap<String, JsonValue> {
         let mut object = HashMap::new();
         while self.lexer.token != Token::RightBrace {
-            // handle object key
             self.lexer.get_next_token();
+
+            // handle comma
+            if !object.is_empty() && self.lexer.token != Token::Comma {
+                self.errors.push(ParserError {
+                    message: "Comma required between objects".to_string(),
+                    line_no: self.lexer.line_no,
+                    byte_offset: self.lexer.byte_offset,
+                });
+                return object;
+            } else if object.is_empty() && self.lexer.token == Token::RightBrace {
+                return object;
+            }
+            
+            // handle object key
             let key = match &self.lexer.token {
                 Token::String(value) => value.clone(),
                 Token::Eof => {
-                    // TODO print errors
+                    self.print_errors();
                     return object;
                 }
                 _ => {
@@ -109,28 +137,20 @@ where
                 }
             };
 
+            // handle colon
+            self.lexer.get_next_token();
+            if self.lexer.token != Token::Colon{
+                self.errors.push(ParserError {
+                    message: "Colon required after object key".to_string(),
+                    line_no: self.lexer.line_no,
+                    byte_offset: self.lexer.byte_offset,
+                });
+                return object;
+            }
+
             // handle object value
             self.lexer.get_next_token();
-            let value = match &self.lexer.token {
-                Token::True => JsonValue::Bool(true),
-                Token::False => JsonValue::Bool(false),
-                Token::Number(val) => JsonValue::Number(val.parse::<f64>().unwrap()),
-                Token::String(val) => JsonValue::String(val.to_string()),
-                Token::LeftBrace => JsonValue::Array(self.array()),
-                Token::LeftBracket => JsonValue::Object(self.object()),
-                Token::Eof => {
-                    // TODO print errors
-                    return object;
-                }
-                _ => {
-                    self.errors.push(ParserError {
-                        message: "Invalid token for object".to_string(),
-                        line_no: self.lexer.line_no,
-                        byte_offset: self.lexer.byte_offset,
-                    });
-                    return object;
-                }
-            };
+            let value = self.parse_value();
 
             // add key, value to object
             object.insert(key, value);
@@ -141,29 +161,14 @@ where
     fn array(&mut self) -> Vec<JsonValue> {
         let mut array = Vec::<JsonValue>::new();
         while self.lexer.token != Token::RightBracket {
-            // handle value
             self.lexer.get_next_token();
-            let value = match &self.lexer.token {
-                Token::True => JsonValue::Bool(true),
-                Token::False => JsonValue::Bool(false),
-                Token::Number(val) => JsonValue::Number(val.parse::<f64>().unwrap()),
-                Token::String(val) => JsonValue::String(val.to_string()),
-                Token::LeftBrace => JsonValue::Array(self.array()),
-                Token::LeftBracket => JsonValue::Object(self.object()),
-                Token::Comma => continue,
-                Token::Eof => {
-                    // TODO print errors
-                    return array;
-                }
-                _ => {
-                    self.errors.push(ParserError {
-                        message: "Invalid token for array".to_string(),
-                        line_no: self.lexer.line_no,
-                        byte_offset: self.lexer.byte_offset,
-                    });
-                    return array;
-                }
-            };
+
+            if array.is_empty() && self.lexer.token == Token::RightBracket {
+                return array;
+            }
+            
+            // handle value
+            let value = self.parse_value();
 
             array.push(value);
         }
