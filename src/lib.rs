@@ -7,7 +7,7 @@
 //!
 //! Parsing from a string:
 //! ```
-//! use jsonst::parse_str;
+//! use json_st::parse_str;
 //!
 //! let json = r#"{"key": "value"}"#;
 //! let parsed = parse_str(json).unwrap();
@@ -43,7 +43,7 @@ use std::path::Path;
 /// # Examples
 ///
 /// ```no_run
-/// use jsonst::parse_file;
+/// use json_st::parse_file;
 ///
 /// let parsed = parse_file("data.json").expect("Failed to parse file");
 /// ```
@@ -75,7 +75,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use jsonst::parse_str;
+/// use json_st::parse_str;
 ///
 /// let payload = r#"[1, 2, 3, {"nested": true}]"#;
 /// match parse_str(payload) {

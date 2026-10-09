@@ -21,7 +21,7 @@ The parser pulls tokens from the lexer on demand using a single token of lookahe
 ## Usage
 
 ```rust
-use jsonst::parse_file;
+use json_st::parse_file;
 
 fn main() {
     if let Ok(json) = parse_file("./samples/list.json") {
