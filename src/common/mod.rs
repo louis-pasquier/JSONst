@@ -58,4 +58,5 @@ pub enum Token {
     // Other
     Eof,
     Sof,
+    Invalid,
 }

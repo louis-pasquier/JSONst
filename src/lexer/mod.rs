@@ -87,6 +87,13 @@ where
             self.token = token;
             self.get_next_char();
         } else if let Some(token) = self.handle_literal() {
+            if token == Token::Invalid {
+                return Err(ParserError {
+                    message: "Invalid literal".to_string(),
+                    line_no: self.line_no,
+                    byte_offset: self.byte_offset,
+                });
+            }
             self.token = token;
         } else if let Ok(token) = self.handle_string() {
             self.token = token;
@@ -128,7 +135,7 @@ where
                 "true" => Some(Token::True),
                 "false" => Some(Token::False),
                 "null" => Some(Token::Null),
-                _ => None,
+                _ => Some(Token::Invalid),
             };
         }
 
@@ -278,7 +285,7 @@ where
             self.get_next_char();
         }
 
-        if matches!(self.ch, '1'..='9') {
+        if self.ch.is_ascii_digit() {
             value.push(self.ch);
             self.get_next_char();
 
@@ -290,14 +297,6 @@ where
             }
 
             return Ok(Token::Number(value));
-        } else if self.ch == '0' {
-            value.push(self.ch);
-            self.get_next_char();
-
-            match self.handle_fraction(&mut value) {
-                Err(err) => return Err(err),
-                Ok(()) => return Ok(Token::Number(value)),
-            }
         } else if !value.is_empty() {
             return Err(ParserError {
                 message: format!("Token {} is invalid", value),

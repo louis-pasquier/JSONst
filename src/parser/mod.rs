@@ -2,7 +2,7 @@ use crate::common::{ParserError, Token};
 use crate::lexer;
 
 use std::collections::HashMap;
-use std::fmt;
+use std::fmt::{self, Write};
 use std::io::Error;
 
 #[derive(Debug, PartialEq)]
@@ -21,7 +21,7 @@ impl fmt::Display for JsonValue {
             JsonValue::Null => write!(f, "null"),
             JsonValue::Bool(val) => write!(f, "{}", val),
             JsonValue::Number(val) => write!(f, "{}", val),
-            JsonValue::String(val) => write!(f, "\"{}\"", val),
+            JsonValue::String(val) => write_escaped(f, val),
             JsonValue::Array(vals) => {
                 let elements: Vec<String> = vals.iter().map(|x| x.to_string()).collect();
                 write!(f, "[{}]", elements.join(", "))
@@ -35,6 +35,24 @@ impl fmt::Display for JsonValue {
             }
         }
     }
+}
+
+fn write_escaped(f: &mut fmt::Formatter, s: &str) -> fmt::Result {
+    f.write_char('"')?;
+    for c in s.chars() {
+        match c {
+            '"' => f.write_str("\\\"")?,
+            '\\' => f.write_str("\\\\")?,
+            '\n' => f.write_str("\\n")?,
+            '\r' => f.write_str("\\r")?,
+            '\t' => f.write_str("\\t")?,
+            '\x08' => f.write_str("\\b")?,
+            '\x0C' => f.write_str("\\f")?,
+            c if (c as u32) < 0x20 => write!(f, "\\u{:04x}", c as u32)?,
+            c => f.write_char(c)?,
+        }
+    }
+    f.write_char('"')
 }
 
 pub struct Parser<I> {
