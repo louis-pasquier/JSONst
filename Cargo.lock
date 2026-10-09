@@ -3,5 +3,5 @@
 version = 4
 
 [[package]]
-name = "jsonst"
+name = "json_st"
 version = "1.0.0"

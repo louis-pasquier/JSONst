@@ -1,4 +1,4 @@
-use jsonst::parse_file;
+use json_st::parse_file;
 
 fn main() {
     println!("Running JSONst");

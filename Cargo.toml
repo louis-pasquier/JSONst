@@ -1,5 +1,5 @@
 [package]
-name = "jsonst"
+name = "json_st"
 description = "A simple JSON parser"
 version = "1.0.0"
 edition = "2024"
