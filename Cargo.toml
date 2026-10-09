@@ -1,7 +1,7 @@
 [package]
 name = "jsonst"
 description = "A simple JSON parser"
-version = "0.0.0"
+version = "1.0.0"
 edition = "2024"
 license-file = "LICENSE.txt"
 readme = "README.md"
