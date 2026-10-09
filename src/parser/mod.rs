@@ -1,24 +1,9 @@
-use crate::lexer::{self, token::Token};
+use crate::common::{ParserError, Token};
+use crate::lexer;
+
 use std::collections::HashMap;
 use std::fmt;
 use std::io::Error;
-
-#[derive(Debug, Clone)]
-pub struct ParserError {
-    message: String,
-    line_no: u16,
-    byte_offset: usize,
-}
-
-impl fmt::Display for ParserError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Parser Error at line {} character {} : {}",
-            self.line_no, self.byte_offset, self.message
-        )
-    }
-}
 
 #[derive(Debug, PartialEq)]
 pub enum JsonValue {
@@ -65,11 +50,11 @@ where
     }
 
     pub fn parse(&mut self) -> Result<JsonValue, ParserError> {
-        self.lexer.get_next_token();
+        self.lexer.get_next_token()?;
 
         let result = self.parse_value()?;
 
-        self.lexer.get_next_token();
+        self.lexer.get_next_token()?;
         if self.lexer.token != Token::Eof {
             return Err(ParserError {
                 message: "Json file can't have multiple root values".to_string(),
@@ -112,7 +97,7 @@ where
         let mut object = HashMap::new();
         loop {
             // handle object key
-            self.lexer.get_next_token();
+            self.lexer.get_next_token()?;
             let key = match &self.lexer.token {
                 Token::String(value) => value.clone(),
                 Token::RightBrace => {
@@ -143,7 +128,7 @@ where
             };
 
             // handle colon
-            self.lexer.get_next_token();
+            self.lexer.get_next_token()?;
             if self.lexer.token != Token::Colon {
                 return Err(ParserError {
                     message: "Colon required after object key".to_string(),
@@ -153,7 +138,7 @@ where
             }
 
             // handle object value
-            self.lexer.get_next_token();
+            self.lexer.get_next_token()?;
             let value = self.parse_value()?;
 
             // add key, value to object
@@ -161,8 +146,8 @@ where
 
             // either there is a comma and another value is expected
             // or there is a } and it's over
-            self.lexer.get_next_token();
-            match self.lexer.token {
+            self.lexer.get_next_token()?;
+            match &self.lexer.token {
                 Token::Comma => continue,
                 Token::RightBrace => break,
                 Token::Eof => {
@@ -186,7 +171,7 @@ where
 
     fn array(&mut self) -> Result<Vec<JsonValue>, ParserError> {
         let mut array = Vec::<JsonValue>::new();
-        self.lexer.get_next_token();
+        self.lexer.get_next_token()?;
 
         if self.lexer.token == Token::RightBracket {
             return Ok(array);
@@ -199,10 +184,10 @@ where
 
             // either there is a comma and another value is expected
             // or there is a ] and it's over
-            self.lexer.get_next_token();
-            match self.lexer.token {
+            self.lexer.get_next_token()?;
+            match &self.lexer.token {
                 Token::Comma => {
-                    self.lexer.get_next_token();
+                    self.lexer.get_next_token()?;
                     continue;
                 }
                 Token::RightBracket => break,

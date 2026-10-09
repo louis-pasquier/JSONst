@@ -1,29 +1,13 @@
+mod common;
 mod lexer;
 mod parser;
+
+use crate::common::{FileParseError, ParserError};
+use crate::parser::JsonValue;
 
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
-
-use crate::parser::{JsonValue, ParserError};
-
-#[derive(Debug)]
-pub enum FileParseError {
-    Io(io::Error),
-    Parse(ParserError),
-}
-
-impl From<io::Error> for FileParseError {
-    fn from(err: io::Error) -> Self {
-        FileParseError::Io(err)
-    }
-}
-
-impl From<ParserError> for FileParseError {
-    fn from(err: ParserError) -> Self {
-        FileParseError::Parse(err)
-    }
-}
 
 pub fn parse_file<P>(filename: P) -> Result<JsonValue, FileParseError>
 where
